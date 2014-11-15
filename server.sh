@@ -15,10 +15,30 @@ ncport=31337
 shawtydfifo=/tmp/shawtydfifo
 ### End Config
 
+res="HTTP/1.1 200 OK
+Server: Apache/2.2.3 (Red Hat)
+Connection: close
+Content-Type: text/html; charset=utf-8
+Content-Length: 136
+
+<html><head><title>ADMIN PANEL</title></head><body><br><h1>Error</h1><hr>Your ip is banned. This incident has been looged.</body></html>"
+
 echo "Netcat server started on port $ncport."
 while true
 do
-    nc -l -p $ncport > $shawtydfifo
+    msg=$(echo "$res" | nc -l -p $ncport)
+    count=$(echo "$msg" | wc -l)
+    if [[ "count" -eq "1" ]];then
+        echo "$msg" > $shawtydfifo
+    else
+        echo "$msg" | while read line; do
+            case $line in
+                GET*)
+                    echo "$line" | awk -F '/' '{print $2 " " $3}' > $shawtydfifo
+                    ;;
+            esac
+        done
+    fi
 done
 
 echo "Netcat server ended."
