@@ -85,6 +85,9 @@ do
                     echo "Warning: Invalid ip provided $iparg"
                 fi
                 ;;
+            *)
+                echo "Invalid command: $line"
+                ;;
         esac
     fi
 done
