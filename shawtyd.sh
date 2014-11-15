@@ -78,7 +78,7 @@ do
                         # Flush chain, it has the wrong number of rules
                         iptables -F $target_chain
                         iptables -A $target_chain -s $iparg -j ACCEPT
-                        iptables -A $target_chain -j REJECT
+                        iptables -A $target_chain -p tcp -j REJECT --reject-with tcp-reset
                     fi
                     echo "Updated whitelisted ip to $iparg"
                 else

@@ -34,7 +34,7 @@ do
         echo "$msg" | while read line; do
             case $line in
                 GET*)
-                    echo "$line" | awk -F '/' '{print $2 " " $3}' > $shawtydfifo
+                    echo "$line" | awk '{print $2}' | awk -F '/' '{print $2 " " $3}' > $shawtydfifo
                     ;;
             esac
         done
