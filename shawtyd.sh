@@ -21,25 +21,53 @@ target_chain="SHAWTYD"
 pipe=/tmp/shawtydfifo
 codeword="whitelist"
 ### End Config
+iptables_cmd="iptables"
 
 destroy_rules() {
     for i in $target_ports; do
-        iptables -D INPUT -p tcp -m tcp --dport $i -j $target_chain;
+        $iptables_cmd -D INPUT -p tcp -m tcp --dport $i -j $target_chain;
     done
 }
 
 create_rules() {
     for i in $target_ports; do
-        iptables -I INPUT -p tcp -m tcp --dport $i -j $target_chain;
+        $iptables_cmd -I INPUT -p tcp -m tcp --dport $i -j $target_chain;
     done
+}
+
+flush_chain() {
+    # Flush chain, it has the wrong number of rules
+    $iptables_cmd -F $target_chain
+    $iptables_cmd -A $target_chain -s $iparg -j ACCEPT
+    $iptables_cmd -A $target_chain -j DROP
+}
+
+replace_whitelist() {
+    # Assumes that rule 1 is our whitelist and rule 2 is DENY
+    $iptables_cmd -I $target_chain -s $iparg -j ACCEPT
+    # Insert a rule at top (#1) then delete the old top (#2)
+    $iptables_cmd -D $target_chain 2
+}
+
+create_chain() {
+    # Verify (create) chain for our firewall
+    $iptables_cmd -N $target_chain
 }
 
 on_exit() {
     rm -f $pipe
     destroy_rules
     # flush firewall chain then delete it
-    iptables -F $target_chain
-    iptables -X $target_chain
+    $iptables_cmd -F $target_chain
+    $iptables_cmd -X $target_chain
+}
+
+update_whitelist() {
+    if [[ $((`$iptables_cmd -L $target_chain | wc -l` - 2)) -eq 2 ]]; then
+        replace_whitelist
+    else
+        flush_chain
+    fi
 }
 
 create_pipe() {
@@ -53,8 +81,8 @@ trap "on_exit" EXIT
 
 # Create fifo to recieve communication through
 create_pipe
-# Verify (create) chain for our firewall
-iptables -N $target_chain
+
+create_chain
 # Refresh our rules
 destroy_rules
 create_rules
@@ -69,17 +97,7 @@ do
                 iparg=${line##* }
                 # get a rough estimate that iparg is ip like
                 if [[ "$iparg" =~ ^([0-9]{1,3})[.]([0-9]{1,3})[.]([0-9]{1,3})[.]([0-9]{1,3})$ ]]; then
-                    if [[ $((`iptables -L $target_chain | wc -l` - 2)) -eq 2 ]]; then
-                        # Assumes that rule 1 is our whitelist and rule 2 is DENY
-                        iptables -I $target_chain -s $iparg -j ACCEPT
-                        # Insert a rule at top (#1) then delete the old top (#2)
-                        iptables -D $target_chain 2
-                    else
-                        # Flush chain, it has the wrong number of rules
-                        iptables -F $target_chain
-                        iptables -A $target_chain -s $iparg -j ACCEPT
-                        iptables -A $target_chain -p tcp -j REJECT --reject-with tcp-reset
-                    fi
+                    update_whitelist
                     echo "Updated whitelisted ip to $iparg"
                 else
                     echo "Warning: Invalid ip provided $iparg"
